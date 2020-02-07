@@ -1803,6 +1803,15 @@ Status Graph::VerifyNodeAndOpMatch() {
         }
         auto maxInclusiveVersion = iter2->second;
         node.op_ = schema_registry_->GetSchema(node.OpType(), maxInclusiveVersion, node.Domain());
+        const auto* schema = node.op_;
+        if (!schema) {
+          return ORT_MAKE_STATUS(ONNXRUNTIME, INVALID_GRAPH, "No Op registered for ", node.OpType(), " with domain_version of ", maxInclusiveVersion);
+        }
+
+        if (schema->Deprecated()) {
+          return ORT_MAKE_STATUS(ONNXRUNTIME, INVALID_GRAPH, "Op registered for ", node.OpType(), " is deprecated in domain_version of ",
+                                 maxInclusiveVersion);
+        }
 
         if (node_proto.input().empty() && node_proto.output().empty()) {
           return ORT_MAKE_STATUS(ONNXRUNTIME, INVALID_GRAPH, "NodeProto (name: ", node_proto.name(), ", type: ", node.OpType(),
@@ -1813,16 +1822,8 @@ Status Graph::VerifyNodeAndOpMatch() {
           check_attribute(attr, ctx, lsc);
         }
 
-        const auto* schema =
-            ctx.get_schema_registry()->GetSchema(node.OpType(), maxInclusiveVersion, node_proto.domain());
-        if (!schema) {
-          return ORT_MAKE_STATUS(ONNXRUNTIME, INVALID_GRAPH, "No Op registered for ", node.OpType(), " with domain_version of ", maxInclusiveVersion);
-        } else if (schema->Deprecated()) {
-          return ORT_MAKE_STATUS(ONNXRUNTIME, INVALID_GRAPH, "Op registered for ", node.OpType(), " is deprecated in domain_version of ",
-                                 maxInclusiveVersion);
-        } else {
-          schema->Verify(node_proto);
-        }
+        schema->Verify(node_proto);
+
         if (node.op_ && node.op_->Deprecated()) {
           return ORT_MAKE_STATUS(ONNXRUNTIME, FAIL, "Fatal error: ", node.OpType(), " is deprecated in opset ",
                                  maxInclusiveVersion);
